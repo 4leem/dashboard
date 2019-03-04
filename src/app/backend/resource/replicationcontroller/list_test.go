@@ -22,12 +22,12 @@ import (
 	metricapi "github.com/kubernetes/dashboard/src/app/backend/integration/metric/api"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestCreateReplicationControllerList(t *testing.T) {
+func TestToReplicationControllerList(t *testing.T) {
 	replicas := int32(0)
 	events := []v1.Event{}
 	controller := true
@@ -175,6 +175,7 @@ func TestCreateReplicationControllerList(t *testing.T) {
 						ObjectMeta: api.ObjectMeta{
 							Name:      "my-app-1",
 							Namespace: "namespace-1",
+							UID:       "uid-1",
 						},
 						TypeMeta:        api.TypeMeta{Kind: api.ResourceKindReplicationController},
 						ContainerImages: []string{"my-container-image-1"},
@@ -190,6 +191,7 @@ func TestCreateReplicationControllerList(t *testing.T) {
 						ObjectMeta: api.ObjectMeta{
 							Name:      "my-app-2",
 							Namespace: "namespace-2",
+							UID:       "uid-2",
 						},
 						TypeMeta:        api.TypeMeta{Kind: api.ResourceKindReplicationController},
 						ContainerImages: []string{"my-container-image-2"},
@@ -236,6 +238,7 @@ func TestGetReplicationControllerList(t *testing.T) {
 			expectedActions: []string{"list", "list", "list"},
 			expected: &ReplicationControllerList{
 				ListMeta: api.ListMeta{TotalItems: 1},
+				Status:   common.ResourceStatus{Running: 1},
 				ReplicationControllers: []ReplicationController{
 					{
 						ObjectMeta: api.ObjectMeta{

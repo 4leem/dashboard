@@ -16,15 +16,16 @@ package event
 
 import (
 	"github.com/kubernetes/dashboard/src/app/backend/api"
+	"github.com/kubernetes/dashboard/src/app/backend/errors"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	client "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes"
 )
 
 // EmptyEventList is a empty list of events.
@@ -36,7 +37,7 @@ var EmptyEventList = &common.EventList{
 }
 
 // GetEvents gets events associated to resource with given name.
-func GetEvents(client client.Interface, namespace, resourceName string) ([]v1.Event, error) {
+func GetEvents(client kubernetes.Interface, namespace, resourceName string) ([]v1.Event, error) {
 	fieldSelector, err := fields.ParseSelector("involvedObject.name" + "=" + resourceName)
 
 	if err != nil {
@@ -59,15 +60,11 @@ func GetEvents(client client.Interface, namespace, resourceName string) ([]v1.Ev
 		return nil, err
 	}
 
-	if !IsTypeFilled(eventList.Items) {
-		eventList.Items = FillEventsType(eventList.Items)
-	}
-
-	return eventList.Items, nil
+	return FillEventsType(eventList.Items), nil
 }
 
 // GetPodsEvents gets events targeting given list of pods.
-func GetPodsEvents(client client.Interface, namespace string, pods []v1.Pod) (
+func GetPodsEvents(client kubernetes.Interface, namespace string, pods []v1.Pod) (
 	[]v1.Event, error) {
 
 	nsQuery := common.NewSameNamespaceQuery(namespace)
@@ -90,7 +87,7 @@ func GetPodsEvents(client client.Interface, namespace string, pods []v1.Pod) (
 }
 
 // GetPodEvents gets pods events associated to pod name and namespace
-func GetPodEvents(client client.Interface, namespace, podName string) ([]v1.Event, error) {
+func GetPodEvents(client kubernetes.Interface, namespace, podName string) ([]v1.Event, error) {
 
 	channels := &common.ResourceChannels{
 		PodList: common.GetPodListChannel(client,
@@ -117,16 +114,11 @@ func GetPodEvents(client client.Interface, namespace, podName string) ([]v1.Even
 	}
 
 	events := filterEventsByPodsUID(eventList.Items, l)
-
-	if !IsTypeFilled(events) {
-		events = FillEventsType(events)
-	}
-
-	return events, nil
+	return FillEventsType(events), nil
 }
 
 // GetNodeEvents gets events associated to node with given name.
-func GetNodeEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, nodeName string) (*common.EventList, error) {
+func GetNodeEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, nodeName string) (*common.EventList, error) {
 	eventList := common.EventList{
 		Events: make([]common.Event, 0),
 	}
@@ -146,52 +138,30 @@ func GetNodeEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery,
 		return &eventList, err
 	}
 
-	if !IsTypeFilled(events.Items) {
-		events.Items = FillEventsType(events.Items)
-	}
-
-	eventList = CreateEventList(events.Items, dsQuery)
+	eventList = CreateEventList(FillEventsType(events.Items), dsQuery)
 	return &eventList, nil
 }
 
 // GetNamespaceEvents gets events associated to a namespace with given name.
-func GetNamespaceEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace string) (common.EventList, error) {
-	events, _ := client.Core().Events(namespace).List(api.ListEverything)
-
-	if !IsTypeFilled(events.Items) {
-		events.Items = FillEventsType(events.Items)
-	}
-
-	return CreateEventList(events.Items, dsQuery), nil
+func GetNamespaceEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace string) (common.EventList, error) {
+	events, _ := client.CoreV1().Events(namespace).List(api.ListEverything)
+	return CreateEventList(FillEventsType(events.Items), dsQuery), nil
 }
 
 // Based on event Reason fills event Type in order to allow correct filtering by Type.
 func FillEventsType(events []v1.Event) []v1.Event {
 	for i := range events {
-		if isFailedReason(events[i].Reason, FailedReasonPartials...) {
-			events[i].Type = v1.EventTypeWarning
-		} else {
-			events[i].Type = v1.EventTypeNormal
+		// Fill in only events with empty type.
+		if len(events[i].Type) == 0 {
+			if isFailedReason(events[i].Reason, FailedReasonPartials...) {
+				events[i].Type = v1.EventTypeWarning
+			} else {
+				events[i].Type = v1.EventTypeNormal
+			}
 		}
 	}
 
 	return events
-}
-
-// IsTypeFilled returns true if all given events type is filled, false otherwise.
-// This is needed as some older versions of kubernetes do not have Type property filled.
-func IsTypeFilled(events []v1.Event) bool {
-	if len(events) == 0 {
-		return false
-	}
-
-	for _, event := range events {
-		if len(event.Type) == 0 {
-			return false
-		}
-	}
-
-	return true
 }
 
 // ToEvent converts event api Event to Event model object.
@@ -214,14 +184,16 @@ func ToEvent(event v1.Event) common.Event {
 }
 
 // GetResourceEvents gets events associated to specified resource.
-func GetResourceEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (
+func GetResourceEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (
 	*common.EventList, error) {
 	resourceEvents, err := GetEvents(client, namespace, name)
-	if err != nil {
+	nonCriticalErrors, criticalError := errors.HandleError(err)
+	if criticalError != nil {
 		return EmptyEventList, err
 	}
 
 	events := CreateEventList(resourceEvents, dsQuery)
+	events.Errors = nonCriticalErrors
 	return &events, nil
 }
 

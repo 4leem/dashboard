@@ -23,14 +23,17 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
-	apps "k8s.io/api/apps/v1beta1"
-	"k8s.io/api/core/v1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 // StatefulSetList contains a list of Stateful Sets in the cluster.
 type StatefulSetList struct {
 	ListMeta api.ListMeta `json:"listMeta"`
+
+	// Basic information about resources status on the list.
+	Status common.ResourceStatus `json:"status"`
 
 	// Unordered list of Pet Sets.
 	StatefulSets      []StatefulSet      `json:"statefulSets"`
@@ -97,7 +100,9 @@ func GetStatefulSetListFromChannels(channels *common.ResourceChannels, dsQuery *
 		return nil, criticalError
 	}
 
-	return toStatefulSetList(statefulSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient), nil
+	ssList := toStatefulSetList(statefulSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient)
+	ssList.Status = getStatus(statefulSets, pods.Items, events.Items)
+	return ssList, nil
 }
 
 func toStatefulSetList(statefulSets []apps.StatefulSet, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,

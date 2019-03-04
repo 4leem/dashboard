@@ -17,13 +17,16 @@ package deployment
 import (
 	"github.com/kubernetes/dashboard/src/app/backend/api"
 	metricapi "github.com/kubernetes/dashboard/src/app/backend/integration/metric/api"
+	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	extensions "k8s.io/api/extensions/v1beta1"
+	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 )
 
-// The code below allows to perform complex data section on []extensions.Deployment
+// The code below allows to perform complex data section on Deployment
 
-type DeploymentCell extensions.Deployment
+type DeploymentCell apps.Deployment
 
 func (self DeploymentCell) GetProperty(name dataselect.PropertyName) dataselect.ComparableValue {
 	switch name {
@@ -49,7 +52,7 @@ func (self DeploymentCell) GetResourceSelector() *metricapi.ResourceSelector {
 	}
 }
 
-func toCells(std []extensions.Deployment) []dataselect.DataCell {
+func toCells(std []apps.Deployment) []dataselect.DataCell {
 	cells := make([]dataselect.DataCell, len(std))
 	for i := range std {
 		cells[i] = DeploymentCell(std[i])
@@ -57,10 +60,50 @@ func toCells(std []extensions.Deployment) []dataselect.DataCell {
 	return cells
 }
 
-func fromCells(cells []dataselect.DataCell) []extensions.Deployment {
-	std := make([]extensions.Deployment, len(cells))
+func fromCells(cells []dataselect.DataCell) []apps.Deployment {
+	std := make([]apps.Deployment, len(cells))
 	for i := range std {
-		std[i] = extensions.Deployment(cells[i].(DeploymentCell))
+		std[i] = apps.Deployment(cells[i].(DeploymentCell))
 	}
 	return std
+}
+
+func getStatus(list *apps.DeploymentList, rs []apps.ReplicaSet, pods []v1.Pod, events []v1.Event) common.ResourceStatus {
+	info := common.ResourceStatus{}
+	if list == nil {
+		return info
+	}
+
+	for _, deployment := range list.Items {
+		matchingPods := common.FilterDeploymentPodsByOwnerReference(deployment, rs, pods)
+		podInfo := common.GetPodInfo(deployment.Status.Replicas, deployment.Spec.Replicas, matchingPods)
+		warnings := event.GetPodsEventWarnings(events, matchingPods)
+
+		if len(warnings) > 0 {
+			info.Failed++
+		} else if podInfo.Pending > 0 {
+			info.Pending++
+		} else {
+			info.Running++
+		}
+	}
+
+	return info
+}
+
+func getConditions(deploymentConditions []apps.DeploymentCondition) []common.Condition {
+	conditions := make([]common.Condition, 0)
+
+	for _, condition := range deploymentConditions {
+		conditions = append(conditions, common.Condition{
+			Type:               string(condition.Type),
+			Status:             condition.Status,
+			Reason:             condition.Reason,
+			Message:            condition.Message,
+			LastTransitionTime: condition.LastTransitionTime,
+			LastProbeTime:      condition.LastUpdateTime,
+		})
+	}
+
+	return conditions
 }

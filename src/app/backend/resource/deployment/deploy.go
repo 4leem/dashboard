@@ -21,8 +21,8 @@ import (
 	"strings"
 
 	"github.com/kubernetes/dashboard/src/app/backend/errors"
+	apps "k8s.io/api/apps/v1beta2"
 	api "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
-	dynamicclient "k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -208,14 +208,21 @@ func DeployApp(spec *AppDeploymentSpec, client client.Interface) error {
 		Spec:       podSpec,
 	}
 
-	deployment := &extensions.Deployment{
+	deployment := &apps.Deployment{
 		ObjectMeta: objectMeta,
-		Spec: extensions.DeploymentSpec{
+		Spec: apps.DeploymentSpec{
 			Replicas: &spec.Replicas,
 			Template: podTemplate,
+			Selector: &metaV1.LabelSelector{
+				// Quoting from https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#selector:
+				// In API version apps/v1beta2, .spec.selector and .metadata.labels no longer default to
+				// .spec.template.metadata.labels if not set. So they must be set explicitly.
+				// Also note that .spec.selector is immutable after creation of the Deployment in apps/v1beta2.
+				MatchLabels: labels,
+			},
 		},
 	}
-	_, err := client.ExtensionsV1beta1().Deployments(spec.Namespace).Create(deployment)
+	_, err := client.AppsV1beta2().Deployments(spec.Namespace).Create(deployment)
 
 	if err != nil {
 		// TODO(bryk): Roll back created resources in case of error.
@@ -320,8 +327,6 @@ func DeployAppFromFile(cfg *rest.Config, spec *AppDeploymentFromFileSpec) (bool,
 			gv = schema.GroupVersion{Version: version}
 		}
 
-		groupVersionKind := schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: kind}
-
 		discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
 		if err != nil {
 			return false, err
@@ -343,23 +348,21 @@ func DeployAppFromFile(cfg *rest.Config, spec *AppDeploymentFromFileSpec) (bool,
 			return false, fmt.Errorf("Unknown resource kind: %s", kind)
 		}
 
-		dynamicClientPool := dynamicclient.NewDynamicClientPool(cfg)
-
-		dynamicClient, err := dynamicClientPool.ClientForGroupVersionKind(groupVersionKind)
-
+		dynamicClient, err := dynamic.NewForConfig(cfg)
 		if err != nil {
 			return false, err
 		}
 
+		groupVersionResource := schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource.Name}
+
 		if strings.Compare(spec.Namespace, "_all") == 0 {
-			_, err = dynamicClient.Resource(resource, data.GetNamespace()).Create(&data)
+			_, err = dynamicClient.Resource(groupVersionResource).Namespace(data.GetNamespace()).Create(&data, metaV1.CreateOptions{})
 		} else {
-			_, err = dynamicClient.Resource(resource, spec.Namespace).Create(&data)
+			_, err = dynamicClient.Resource(groupVersionResource).Namespace(spec.Namespace).Create(&data, metaV1.CreateOptions{})
 		}
 
 		if err != nil {
 			return false, errors.LocalizeError(err)
 		}
 	}
-	return true, nil
 }

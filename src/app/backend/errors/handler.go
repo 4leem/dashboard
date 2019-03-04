@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 
+	restful "github.com/emicklei/go-restful"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -90,4 +91,47 @@ func contains(s []int32, e int32) bool {
 		}
 	}
 	return false
+}
+
+// IsForbiddenError returns true if given error has code 403, false otherwise.
+func IsForbiddenError(err error) bool {
+	status, ok := err.(*errors.StatusError)
+	if !ok {
+		return false
+	}
+
+	return status.ErrStatus.Code == http.StatusForbidden
+}
+
+// IsNotFoundError returns true when the given error is 404-NotFound error.
+func IsNotFoundError(err error) bool {
+	status, ok := err.(*errors.StatusError)
+	if !ok {
+		return false
+	}
+
+	return status.ErrStatus.Code == http.StatusNotFound
+}
+
+// HandleInternalError writes the given error to the response and sets appropriate HTTP status headers.
+func HandleInternalError(response *restful.Response, err error) {
+	log.Print(err)
+	statusCode := http.StatusInternalServerError
+	statusError, ok := err.(*errors.StatusError)
+	if ok && statusError.Status().Code > 0 {
+		statusCode = int(statusError.Status().Code)
+	}
+	response.AddHeader("Content-Type", "text/plain")
+	response.WriteErrorString(statusCode, err.Error()+"\n")
+}
+
+// Handle HTTP Errors more accurately based on the localized consts
+func HandleHTTPError(err error) int {
+	if err == nil {
+		return http.StatusInternalServerError
+	}
+	if err.Error() == MSG_TOKEN_EXPIRED_ERROR || err.Error() == MSG_LOGIN_UNAUTHORIZED_ERROR || err.Error() == MSG_ENCRYPTION_KEY_CHANGED {
+		return http.StatusUnauthorized
+	}
+	return http.StatusInternalServerError
 }

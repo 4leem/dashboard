@@ -23,7 +23,7 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/pod"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -39,7 +39,6 @@ func TestGetNodeDetail(t *testing.T) {
 			&v1.Node{
 				ObjectMeta: metaV1.ObjectMeta{Name: "test-node"},
 				Spec: v1.NodeSpec{
-					ExternalID:    "127.0.0.1",
 					PodCIDR:       "127.0.0.1",
 					ProviderID:    "ID-1",
 					Unschedulable: true,
@@ -48,7 +47,6 @@ func TestGetNodeDetail(t *testing.T) {
 			&NodeDetail{
 				ObjectMeta:    api.ObjectMeta{Name: "test-node"},
 				TypeMeta:      api.TypeMeta{Kind: api.ResourceKindNode},
-				ExternalID:    "127.0.0.1",
 				PodCIDR:       "127.0.0.1",
 				ProviderID:    "ID-1",
 				Unschedulable: true,

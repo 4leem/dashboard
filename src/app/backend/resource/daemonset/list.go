@@ -21,8 +21,8 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -31,6 +31,9 @@ type DaemonSetList struct {
 	ListMeta          api.ListMeta       `json:"listMeta"`
 	DaemonSets        []DaemonSet        `json:"daemonSets"`
 	CumulativeMetrics []metricapi.Metric `json:"cumulativeMetrics"`
+
+	// Basic information about resources status on the list.
+	Status common.ResourceStatus `json:"status"`
 
 	// List of non-critical errors, that occurred during resource retrieval.
 	Errors []error `json:"errors"`
@@ -64,7 +67,7 @@ func GetDaemonSetList(client kubernetes.Interface, nsQuery *common.NamespaceQuer
 	return GetDaemonSetListFromChannels(channels, dsQuery, metricClient)
 }
 
-// GetDaemonSetListFromChannels returns a list of all Daemon Seet in the cluster
+// GetDaemonSetListFromChannels returns a list of all Daemon Set in the cluster
 // reading required resource list once from the channels.
 func GetDaemonSetListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery,
 	metricClient metricapi.MetricClient) (*DaemonSetList, error) {
@@ -90,11 +93,12 @@ func GetDaemonSetListFromChannels(channels *common.ResourceChannels, dsQuery *da
 		return nil, criticalError
 	}
 
-	result := toDaemonSetList(daemonSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient)
-	return result, nil
+	dsList := toDaemonSetList(daemonSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient)
+	dsList.Status = getStatus(daemonSets, pods.Items, events.Items)
+	return dsList, nil
 }
 
-func toDaemonSetList(daemonSets []extensions.DaemonSet, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,
+func toDaemonSetList(daemonSets []apps.DaemonSet, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,
 	dsQuery *dataselect.DataSelectQuery, metricClient metricapi.MetricClient) *DaemonSetList {
 
 	daemonSetList := &DaemonSetList{
@@ -112,10 +116,10 @@ func toDaemonSetList(daemonSets []extensions.DaemonSet, pods []v1.Pod, events []
 	daemonSets = FromCells(dsCells)
 	daemonSetList.ListMeta = api.ListMeta{TotalItems: filteredTotal}
 
-	for _, daemonSet := range daemonSets {
+	for i, daemonSet := range daemonSets {
 		matchingPods := common.FilterPodsByControllerRef(&daemonSet, pods)
 		podInfo := common.GetPodInfo(daemonSet.Status.CurrentNumberScheduled,
-			&daemonSet.Status.DesiredNumberScheduled, matchingPods)
+			&daemonSets[i].Status.DesiredNumberScheduled, matchingPods)
 		podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 
 		daemonSetList.DaemonSets = append(daemonSetList.DaemonSets, DaemonSet{

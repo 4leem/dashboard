@@ -22,9 +22,9 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/job"
 	batch "k8s.io/api/batch/v1"
-	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	client "k8s.io/client-go/kubernetes"
 )
 
@@ -38,7 +38,7 @@ var emptyJobList = &job.JobList{
 
 // GetCronJobJobs returns list of jobs owned by cron job.
 func GetCronJobJobs(client client.Interface, metricClient metricapi.MetricClient,
-	dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
+	dsQuery *dataselect.DataSelectQuery, namespace, name string, active bool) (*job.JobList, error) {
 
 	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
@@ -72,23 +72,78 @@ func GetCronJobJobs(client client.Interface, metricClient metricapi.MetricClient
 		return emptyJobList, criticalError
 	}
 
-	jobs.Items = filterJobsByOwnerReferences(cronJob.Status.Active, jobs.Items)
+	jobs.Items = filterJobsByOwnerUID(cronJob.UID, jobs.Items)
+	jobs.Items = filterJobsByState(active, jobs.Items)
 
 	return job.ToJobList(jobs.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient), nil
 }
 
-func filterJobsByOwnerReferences(refs []v1.ObjectReference, jobs []batch.Job) (matchingJobs []batch.Job) {
-	m := make(map[types.UID]batch.Job, 0)
-	for _, j := range jobs {
-		m[j.UID] = j // Map job to their UIDs to enable quick access.
+// TriggerCronJob manually triggers a cron job and creates a new job.
+func TriggerCronJob(client client.Interface,
+	namespace, name string) error {
+
+	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
+
+	if err != nil {
+		return err
 	}
 
-	for _, ref := range refs {
-		matchedJob, hasMatch := m[ref.UID]
-		if hasMatch {
-			matchingJobs = append(matchingJobs, matchedJob)
+	annotations := make(map[string]string)
+	annotations["cronjob.kubernetes.io/instantiate"] = "manual"
+
+	labels := make(map[string]string)
+	for k, v := range cronJob.Spec.JobTemplate.Labels {
+		labels[k] = v
+	}
+
+	//job name cannot exceed DNS1053LabelMaxLength (52 characters)
+	var newJobName string
+	if len(cronJob.Name) < 42 {
+		newJobName = cronJob.Name + "-manual-" + rand.String(3)
+	} else {
+		newJobName = cronJob.Name[0:41] + "-manual-" + rand.String(3)
+	}
+
+	jobToCreate := &batch.Job{
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:        newJobName,
+			Namespace:   namespace,
+			Annotations: annotations,
+			Labels:      labels,
+		},
+		Spec: cronJob.Spec.JobTemplate.Spec,
+	}
+
+	_, err = client.BatchV1().Jobs(namespace).Create(jobToCreate)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func filterJobsByOwnerUID(UID types.UID, jobs []batch.Job) (matchingJobs []batch.Job) {
+	for _, j := range jobs {
+		for _, i := range j.OwnerReferences {
+			if i.UID == UID {
+				matchingJobs = append(matchingJobs, j)
+				break
+			}
 		}
 	}
+	return
+}
 
+func filterJobsByState(active bool, jobs []batch.Job) (matchingJobs []batch.Job) {
+	for _, j := range jobs {
+		if active && j.Status.Active > 0 {
+			matchingJobs = append(matchingJobs, j)
+		} else if !active && j.Status.Active == 0 {
+			matchingJobs = append(matchingJobs, j)
+		} else {
+			//sup
+		}
+	}
 	return
 }

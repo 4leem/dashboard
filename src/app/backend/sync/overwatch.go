@@ -15,10 +15,13 @@
 package sync
 
 import (
+	"fmt"
 	"log"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	syncApi "github.com/kubernetes/dashboard/src/app/backend/sync/api"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // Overwatch is watching over every registered synchronizer. In case of error it will be logged and if RestartPolicy
@@ -46,11 +49,17 @@ const (
 	// In case of synchronizer error it will be restarted.
 	AlwaysRestart RestartPolicy = "always"
 	NeverRestart  RestartPolicy = "never"
+
+	RestartDelay = 2 * time.Second
+	// We don't need to sync it with every instance. If a single instance synchronizer fails
+	// often, just force restart it.
+	MaxRestartCount = 15
 )
 
 type overwatch struct {
-	syncMap   map[string]syncApi.Synchronizer
-	policyMap map[string]RestartPolicy
+	syncMap      map[string]syncApi.Synchronizer
+	policyMap    map[string]RestartPolicy
+	restartCount map[string]int
 
 	registrationSignal chan string
 	restartSignal      chan string
@@ -78,6 +87,10 @@ func (self *overwatch) monitorRestartEvents() {
 	go wait.Forever(func() {
 		select {
 		case name := <-self.restartSignal:
+			if self.restartCount[name] > MaxRestartCount {
+				panic(fmt.Sprintf("synchronizer %s restart limit execeeded. Restarting pod.", name))
+			}
+
 			log.Printf("Restarting synchronizer: %s.", name)
 			synchronizer := self.syncMap[name]
 			synchronizer.Start()
@@ -106,7 +119,10 @@ func (self *overwatch) monitorSynchronizerStatus(synchronizer syncApi.Synchroniz
 		case err := <-synchronizer.Error():
 			log.Printf("Synchronizer %s exited with error: %s", name, err.Error())
 			if self.policyMap[name] == AlwaysRestart {
+				// Wait a sec before restarting synchronizer in case it exited with error.
+				time.Sleep(RestartDelay)
 				self.broadcastRestartEvent(name)
+				self.restartCount[name]++
 			}
 
 			close(stopCh)

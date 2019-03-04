@@ -21,8 +21,8 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/api"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -94,11 +94,11 @@ func TestToEventList(t *testing.T) {
 				Events: []common.Event{
 					{
 						ObjectMeta: api.ObjectMeta{Name: "event-1"},
-						TypeMeta:   api.TypeMeta{api.ResourceKindEvent},
+						TypeMeta:   api.TypeMeta{Kind: api.ResourceKindEvent},
 					},
 					{
 						ObjectMeta: api.ObjectMeta{Name: "event-2"},
-						TypeMeta:   api.TypeMeta{api.ResourceKindEvent},
+						TypeMeta:   api.TypeMeta{Kind: api.ResourceKindEvent},
 					},
 				},
 			},
@@ -121,7 +121,7 @@ func TestGetResourceEvents(t *testing.T) {
 		namespace, name string
 		eventList       *v1.EventList
 		podList         *v1.PodList
-		replicaSet      *extensions.ReplicaSet
+		replicaSet      *apps.ReplicaSet
 		expectedActions []string
 		expected        *common.EventList
 	}{
@@ -133,10 +133,10 @@ func TestGetResourceEvents(t *testing.T) {
 			}},
 			&v1.PodList{Items: []v1.Pod{{ObjectMeta: metaV1.ObjectMeta{
 				Name: "pod-1", Namespace: "ns-1"}}}},
-			&extensions.ReplicaSet{
+			&apps.ReplicaSet{
 				ObjectMeta: metaV1.ObjectMeta{
 					Name: "rs-1", Namespace: "ns-1", Labels: labelSelector},
-				Spec: extensions.ReplicaSetSpec{
+				Spec: apps.ReplicaSetSpec{
 					Selector: &metaV1.LabelSelector{
 						MatchLabels: labelSelector,
 					}}},
@@ -149,7 +149,9 @@ func TestGetResourceEvents(t *testing.T) {
 						Name: "ev-1", Namespace: "ns-1", Labels: labelSelector},
 					Message: "test-message",
 					Type:    v1.EventTypeNormal,
-				}}},
+				}},
+				Errors: []error{},
+			},
 		},
 	}
 

@@ -25,8 +25,8 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/pod"
 	resourceService "github.com/kubernetes/dashboard/src/app/backend/resource/service"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sClient "k8s.io/client-go/kubernetes"
 )
 
@@ -68,7 +68,7 @@ func GetDaemonSetDetail(client k8sClient.Interface, metricClient metricapi.Metri
 	namespace, name string) (*DaemonSetDetail, error) {
 
 	log.Printf("Getting details of %s daemon set in %s namespace", name, namespace)
-	daemonSet, err := client.ExtensionsV1beta1().DaemonSets(namespace).Get(name, metaV1.GetOptions{})
+	daemonSet, err := client.AppsV1beta2().DaemonSets(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

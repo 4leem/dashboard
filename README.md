@@ -7,51 +7,67 @@
 [![GitHub release](https://img.shields.io/github/release/kubernetes/dashboard.svg)](https://github.com/kubernetes/dashboard/releases/latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/kubernetes/dashboard/blob/master/LICENSE)
 
-Kubernetes Dashboard is a general purpose, web-based UI for Kubernetes clusters. It allows users to manage applications
-running in the cluster and troubleshoot them, as well as manage the cluster itself.
+Kubernetes Dashboard is a general purpose, web-based UI for Kubernetes clusters. It allows users to manage applications running in the cluster and troubleshoot them, as well as manage the cluster itself.
 
 ![Dashboard UI workloads page](docs/dashboard-ui.png)
 
 ## Getting Started
 
-**IMPORTANT:** Since version 1.7 Dashboard uses more secure setup. It means, that by default it has minimal set of
-privileges and can only be accessed over HTTPS. It is recommended to read [Access Control](
-https://github.com/kubernetes/dashboard/wiki/Access-control) guide before performing any further steps.
+**IMPORTANT:** Read the [Access Control](
+https://github.com/kubernetes/dashboard/wiki/Access-control) guide before performing any further steps. The default Dashboard deployment contains a minimal set of RBAC privileges needed to run.
 
-To deploy Dashboard execute following command:
+To deploy Dashboard, execute following command:
 
 ```sh
-$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
 ```
 
-To start using Dashboard run following command:
+To access Dashboard from your local workstation you must create a secure channel to your Kubernetes cluster. Run the following command:
 
 ```sh
 $ kubectl proxy
 ```
+Now access Dashboard at:
 
-Dashboard is now available at 
 [`http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/`](
 http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/).
 
-**NOTE:** [Heapster](https://github.com/kubernetes/heapster/) has to be running in the cluster for the metrics
+## Create An Authentication Token (RBAC)
+To find out how to create sample user and log in follow [Creating sample user](https://github.com/kubernetes/dashboard/wiki/Creating-sample-user) guide.
+
+**NOTE:**
+* Kubeconfig Authentication method does not support external identity providers or certificate-based authentication. 
+* Dashboard can only be accessed over HTTPS
+* [Heapster](https://github.com/kubernetes/heapster/) has to be running in the cluster for the metrics
 and graphs to be available. Read more about it in [Integrations](
 https://github.com/kubernetes/dashboard/wiki/Integrations) guide.
 
 ## Documentation
 
-Dashboard documentation can be found on [Wiki](https://github.com/kubernetes/dashboard/wiki) pages, it includes:
+Dashboard documentation can be found on [Wiki](https://github.com/kubernetes/dashboard/wiki) pages which contains:
 
 * Common: Entry-level overview
-
 * User Guide: [Installation](https://github.com/kubernetes/dashboard/wiki/Installation), [Accessing Dashboard](
 https://github.com/kubernetes/dashboard/wiki/Accessing-dashboard) and more for users
-
 * Developer Guide: [Getting Started](https://github.com/kubernetes/dashboard/wiki/Getting-started), [Dependency
 Management](https://github.com/kubernetes/dashboard/wiki/Dependency-management) and more for anyone interested in
 contributing
 
+## Community, discussion, contribution, and support
+
+Learn how to engage with the Kubernetes community on the [community page](http://kubernetes.io/community/).
+
+You can reach the maintainers of this project at:
+
+* [**#sig-ui on Kubernetes Slack**](https://kubernetes.slack.com)
+* [**kubernetes-sig-ui mailing list** ](https://groups.google.com/forum/#!forum/kubernetes-sig-ui)
+* [**Issue tracker**](https://github.com/kubernetes/dashboard/issues)
+* [**SIG info**](https://github.com/kubernetes/community/tree/master/sig-ui)
+
+### Code of conduct
+
+Participation in the Kubernetes community is governed by the [Kubernetes Code of Conduct](code-of-conduct.md).
+
 ## License
 
-The work done has been licensed under Apache License 2.0. The license file can be found [here](LICENSE). You can find
-out more about the license at [www.apache.org/licenses/LICENSE-2.0](//www.apache.org/licenses/LICENSE-2.0).
+[Apache License 2.0](https://github.com/kubernetes/dashboard/blob/master/LICENSE)

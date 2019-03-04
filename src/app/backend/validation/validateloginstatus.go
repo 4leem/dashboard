@@ -16,6 +16,7 @@ package validation
 
 import (
 	restful "github.com/emicklei/go-restful"
+	"github.com/kubernetes/dashboard/src/app/backend/args"
 	"github.com/kubernetes/dashboard/src/app/backend/client"
 )
 
@@ -36,9 +37,14 @@ func ValidateLoginStatus(request *restful.Request) *LoginStatus {
 	authHeader := request.HeaderParameter("Authorization")
 	tokenHeader := request.HeaderParameter(client.JWETokenHeader)
 
+	httpsMode := request.Request.TLS != nil
+	if args.Holder.GetEnableInsecureLogin() {
+		httpsMode = true
+	}
+
 	return &LoginStatus{
 		TokenPresent:  len(tokenHeader) > 0,
 		HeaderPresent: len(authHeader) > 0,
-		HTTPSMode:     request.Request.TLS != nil,
+		HTTPSMode:     httpsMode,
 	}
 }

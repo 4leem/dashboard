@@ -14,6 +14,12 @@
 
 package api
 
+import (
+	"strings"
+
+	"github.com/kubernetes/dashboard/src/app/backend/args"
+)
+
 // ToAuthenticationModes transforms array of authentication mode strings to valid AuthenticationModes type.
 func ToAuthenticationModes(modes []string) AuthenticationModes {
 	result := AuthenticationModes{}
@@ -30,4 +36,22 @@ func ToAuthenticationModes(modes []string) AuthenticationModes {
 	}
 
 	return result
+}
+
+// List of protected resources that should be filtered out from dashboard UI.
+var protectedResources = []ProtectedResource{
+	{EncryptionKeyHolderName, args.Holder.GetNamespace()},
+	{CertificateHolderSecretName, args.Holder.GetNamespace()},
+}
+
+// ShouldRejectRequest returns true if url contains name and namespace of resource that should be filtered out from
+// dashboard.
+func ShouldRejectRequest(url string) bool {
+	for _, protectedResource := range protectedResources {
+		if strings.Contains(url, protectedResource.ResourceName) && strings.Contains(url, protectedResource.ResourceNamespace) {
+			return true
+		}
+	}
+
+	return false
 }

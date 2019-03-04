@@ -15,11 +15,13 @@
 package api
 
 import (
+	"time"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-// ActionHandlerFunction is a callback function that can be registered on an watch event.
+// ActionHandlerFunction is a callback function that can be registered on a watch event.
 type ActionHandlerFunction func(runtime.Object)
 
 // Synchronizer is used to watch over a kubernetes resource changes in real time. It can be used to i.e. synchronize
@@ -45,10 +47,19 @@ type Synchronizer interface {
 	// RegisterActionHandler registers callback functions on given event types. They are automatically called by
 	// watcher.
 	RegisterActionHandler(ActionHandlerFunction, ...watch.EventType)
+	// SetPoller allows to set custom poller to synchronize objects.
+	SetPoller(poller Poller)
 }
 
 // SynchronizerManager interface is responsible for creating specific synchronizers.
 type SynchronizerManager interface {
 	// Secret created single secret synchronizer based on name and namespace information.
 	Secret(namespace, name string) Synchronizer
+}
+
+// Poller interface is responsible for periodically polling specific resource.
+type Poller interface {
+	// Poll polls specific resource every 'interval' time. Watch interface is returned in order to use it
+	// in the same way as regular watch on resource.
+	Poll(interval time.Duration) watch.Interface
 }

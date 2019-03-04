@@ -23,8 +23,8 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	client "k8s.io/client-go/kubernetes"
 )
 
@@ -32,6 +32,9 @@ import (
 type ReplicaSetList struct {
 	ListMeta          api.ListMeta       `json:"listMeta"`
 	CumulativeMetrics []metricapi.Metric `json:"cumulativeMetrics"`
+
+	// Basic information about resources status on the list.
+	Status common.ResourceStatus `json:"status"`
 
 	// Unordered list of Replica Sets.
 	ReplicaSets []ReplicaSet `json:"replicaSets"`
@@ -80,12 +83,14 @@ func GetReplicaSetListFromChannels(channels *common.ResourceChannels,
 		return nil, criticalError
 	}
 
-	return ToReplicaSetList(replicaSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient), nil
+	rsList := ToReplicaSetList(replicaSets.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient)
+	rsList.Status = getStatus(replicaSets, pods.Items, events.Items)
+	return rsList, nil
 }
 
 // ToReplicaSetList creates paginated list of Replica Set model
 // objects based on Kubernetes Replica Set objects array and related resources arrays.
-func ToReplicaSetList(replicaSets []extensions.ReplicaSet, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,
+func ToReplicaSetList(replicaSets []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,
 	dsQuery *dataselect.DataSelectQuery, metricClient metricapi.MetricClient) *ReplicaSetList {
 
 	replicaSetList := &ReplicaSetList{

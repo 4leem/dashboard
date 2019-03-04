@@ -15,7 +15,7 @@ Permissions are managed using the following Kubernetes Resources:
 * RoleBinding
 * ClusterRoleBinding
 
-None of these are reflected in the current version of Dashboard UI. There should a simplified, 
+None of these are reflected in the current version of Dashboard UI. There should be a simplified, 
 more user-friendly way to manage a cluster's access control by abstracting these raw concepts.
 
 
@@ -71,7 +71,7 @@ can be arbitrary strings. Entering "*" indicates references __all__ resource typ
 
 Clicking "+ CREATE ROLE BINDING" will open a dialog. After selecting the
 target Role, adding subjects and selecting the Namespace ("All Namespaces" will create a ClusterRoleBinding), 
-clicking clicking "Create" will create the Role Binding and select that Role Binding from the list, displaying its details in the panel on the right.
+clicking "Create" will create the Role Binding and select that Role Binding from the list, displaying its details in the panel on the right.
 
 NOTE: The existence of the subject entered by the user cannot be verified at the moment, so it is up to the 
 user to make sure the entered information is correct.

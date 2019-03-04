@@ -21,7 +21,7 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/errors"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client "k8s.io/client-go/kubernetes"
 )
@@ -30,7 +30,7 @@ import (
 func GetStorageClassPersistentVolumes(client client.Interface, storageClassName string,
 	dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
 
-	storageClass, err := client.StorageV1beta1().StorageClasses().Get(storageClassName, metaV1.GetOptions{})
+	storageClass, err := client.StorageV1().StorageClasses().Get(storageClassName, metaV1.GetOptions{})
 
 	if err != nil {
 		return nil, err

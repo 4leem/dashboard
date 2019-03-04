@@ -23,8 +23,8 @@ import (
 	metricapi "github.com/kubernetes/dashboard/src/app/backend/integration/metric/api"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -34,14 +34,14 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 	replicas := int32(21)
 	controller := true
 	cases := []struct {
-		k8sRs         extensions.ReplicaSetList
+		k8sRs         apps.ReplicaSetList
 		k8sRsError    error
 		pods          *v1.PodList
 		expected      *ReplicaSetList
 		expectedError error
 	}{
 		{
-			extensions.ReplicaSetList{},
+			apps.ReplicaSetList{},
 			nil,
 			&v1.PodList{},
 			&ReplicaSetList{
@@ -53,36 +53,36 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 			nil,
 		},
 		{
-			extensions.ReplicaSetList{},
+			apps.ReplicaSetList{},
 			errors.New("MyCustomError"),
 			&v1.PodList{},
 			nil,
 			errors.New("MyCustomError"),
 		},
 		{
-			extensions.ReplicaSetList{},
+			apps.ReplicaSetList{},
 			&k8serrors.StatusError{},
 			&v1.PodList{},
 			nil,
 			&k8serrors.StatusError{},
 		},
 		{
-			extensions.ReplicaSetList{},
+			apps.ReplicaSetList{},
 			&k8serrors.StatusError{ErrStatus: metaV1.Status{}},
 			&v1.PodList{},
 			nil,
 			&k8serrors.StatusError{ErrStatus: metaV1.Status{}},
 		},
 		{
-			extensions.ReplicaSetList{},
+			apps.ReplicaSetList{},
 			&k8serrors.StatusError{ErrStatus: metaV1.Status{Reason: "foo-bar"}},
 			&v1.PodList{},
 			nil,
 			&k8serrors.StatusError{ErrStatus: metaV1.Status{Reason: "foo-bar"}},
 		},
 		{
-			extensions.ReplicaSetList{
-				Items: []extensions.ReplicaSet{{
+			apps.ReplicaSetList{
+				Items: []apps.ReplicaSet{{
 					ObjectMeta: metaV1.ObjectMeta{
 						Name:              "rs-name",
 						Namespace:         "rs-namespace",
@@ -90,11 +90,11 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 						UID:               "uid",
 						CreationTimestamp: metaV1.Unix(111, 222),
 					},
-					Spec: extensions.ReplicaSetSpec{
+					Spec: apps.ReplicaSetSpec{
 						Selector: &metaV1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}},
 						Replicas: &replicas,
 					},
-					Status: extensions.ReplicaSetStatus{
+					Status: apps.ReplicaSetStatus{
 						Replicas: 7,
 					},
 				}},
@@ -133,10 +133,12 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 			&ReplicaSetList{
 				ListMeta:          api.ListMeta{TotalItems: 1},
 				CumulativeMetrics: make([]metricapi.Metric, 0),
+				Status:            common.ResourceStatus{Running: 1},
 				ReplicaSets: []ReplicaSet{{
 					ObjectMeta: api.ObjectMeta{
 						Name:              "rs-name",
 						Namespace:         "rs-namespace",
+						UID:               "uid",
 						Labels:            map[string]string{"key": "value"},
 						CreationTimestamp: metaV1.Unix(111, 222),
 					},
@@ -157,7 +159,7 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 	for _, c := range cases {
 		channels := &common.ResourceChannels{
 			ReplicaSetList: common.ReplicaSetListChannel{
-				List:  make(chan *extensions.ReplicaSetList, 1),
+				List:  make(chan *apps.ReplicaSetList, 1),
 				Error: make(chan error, 1),
 			},
 			NodeList: common.NodeListChannel{
@@ -203,19 +205,19 @@ func TestGetReplicaSetListFromChannels(t *testing.T) {
 	}
 }
 
-func TestCreateReplicaSetList(t *testing.T) {
+func TestToReplicaSetList(t *testing.T) {
 	replicas := int32(0)
 	cases := []struct {
-		replicaSets []extensions.ReplicaSet
+		replicaSets []apps.ReplicaSet
 		pods        []v1.Pod
 		events      []v1.Event
 		expected    *ReplicaSetList
 	}{
 		{
-			[]extensions.ReplicaSet{
+			[]apps.ReplicaSet{
 				{
 					ObjectMeta: metaV1.ObjectMeta{Name: "replica-set", Namespace: "ns-1"},
-					Spec: extensions.ReplicaSetSpec{
+					Spec: apps.ReplicaSetSpec{
 						Replicas: &replicas,
 						Selector: &metaV1.LabelSelector{
 							MatchLabels: map[string]string{"key": "value"},
@@ -254,19 +256,19 @@ func TestCreateReplicaSetList(t *testing.T) {
 func TestGetReplicaSetList(t *testing.T) {
 	replicas := int32(21)
 	cases := []struct {
-		rsList          *extensions.ReplicaSetList
+		rsList          *apps.ReplicaSetList
 		expectedActions []string
 		expected        *ReplicaSetList
 	}{
 		{
-			rsList: &extensions.ReplicaSetList{
-				Items: []extensions.ReplicaSet{
+			rsList: &apps.ReplicaSetList{
+				Items: []apps.ReplicaSet{
 					{
 						ObjectMeta: metaV1.ObjectMeta{
 							Name:   "rs-1",
 							Labels: map[string]string{},
 						},
-						Spec: extensions.ReplicaSetSpec{
+						Spec: apps.ReplicaSetSpec{
 							Replicas: &replicas,
 						},
 					},
@@ -274,6 +276,7 @@ func TestGetReplicaSetList(t *testing.T) {
 			expectedActions: []string{"list", "list", "list"},
 			expected: &ReplicaSetList{
 				ListMeta: api.ListMeta{TotalItems: 1},
+				Status:   common.ResourceStatus{Running: 1},
 				ReplicaSets: []ReplicaSet{
 					{
 						ObjectMeta: api.ObjectMeta{

@@ -17,8 +17,10 @@ package job
 import (
 	"github.com/kubernetes/dashboard/src/app/backend/api"
 	metricapi "github.com/kubernetes/dashboard/src/app/backend/integration/metric/api"
+	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	batch "k8s.io/api/batch/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // The code below allows to perform complex data section on []batch.Job
@@ -62,4 +64,29 @@ func FromCells(cells []dataselect.DataCell) []batch.Job {
 		std[i] = batch.Job(cells[i].(JobCell))
 	}
 	return std
+}
+
+func getStatus(list *batch.JobList, pods []v1.Pod) common.ResourceStatus {
+	info := common.ResourceStatus{}
+	if list == nil {
+		return info
+	}
+
+	for _, job := range list.Items {
+		matchingPods := common.FilterPodsForJob(job, pods)
+		podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, matchingPods)
+		jobStatus := getJobStatus(&job)
+
+		if jobStatus.Status == JobStatusFailed {
+			info.Failed++
+		} else if jobStatus.Status == JobStatusComplete {
+			info.Succeeded++
+		} else if podInfo.Running > 0 {
+			info.Running++
+		} else {
+			info.Pending++
+		}
+	}
+
+	return info
 }

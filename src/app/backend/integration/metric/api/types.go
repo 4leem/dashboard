@@ -15,13 +15,12 @@
 package api
 
 import (
-	"time"
-
 	"fmt"
+	"time"
 
 	"github.com/kubernetes/dashboard/src/app/backend/api"
 	integrationapi "github.com/kubernetes/dashboard/src/app/backend/integration/api"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -163,6 +162,36 @@ type Metric struct {
 	Label `json:"-"`
 	// Names of aggregating function used.
 	Aggregate AggregationMode `json:"aggregation,omitempty"`
+}
+
+// SidecarMetric is a format of data used by our sidecar. This is also the format of data that is being sent by backend API.
+type SidecarMetric struct {
+	// DataPoints is a list of X, Y int64 data points, sorted by X.
+	DataPoints `json:"dataPoints"`
+	// MetricPoints is a list of value, timestamp metrics used for sparklines on a pod list page.
+	MetricPoints []MetricPoint `json:"metricPoints"`
+	// MetricName is the name of metric stored in this struct.
+	MetricName string `json:"metricName"`
+	// Label stores information about identity of resources (UIDS) described by this metric.
+	UIDs []string `json:"uids"`
+}
+
+type SidecarMetricResultList struct {
+	Items []SidecarMetric `json:"items"`
+}
+
+type MetricResultList struct {
+	Items []Metric `json:"items"`
+}
+
+func (metric *SidecarMetric) AddMetricPoint(item MetricPoint) []MetricPoint {
+	metric.MetricPoints = append(metric.MetricPoints, item)
+	return metric.MetricPoints
+}
+
+func (metric *Metric) AddMetricPoint(item MetricPoint) []MetricPoint {
+	metric.MetricPoints = append(metric.MetricPoints, item)
+	return metric.MetricPoints
 }
 
 // String implements stringer interface to allow easy printing

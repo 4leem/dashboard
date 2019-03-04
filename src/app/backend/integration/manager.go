@@ -17,10 +17,10 @@ package integration
 import (
 	"fmt"
 
-	"github.com/kubernetes/dashboard/src/app/backend/client"
+	clientapi "github.com/kubernetes/dashboard/src/app/backend/client/api"
 	"github.com/kubernetes/dashboard/src/app/backend/integration/api"
 	"github.com/kubernetes/dashboard/src/app/backend/integration/metric"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // IntegrationManager is responsible for management of all integrated applications.
@@ -44,8 +44,7 @@ func (self *integrationManager) Metric() metric.MetricManager {
 }
 
 // GetState implements integration manager interface. See IntegrationManager for more information.
-func (self *integrationManager) GetState(id api.IntegrationID) (
-	*api.IntegrationState, error) {
+func (self *integrationManager) GetState(id api.IntegrationID) (*api.IntegrationState, error) {
 	for _, i := range self.List() {
 		if i.ID() == id {
 			return self.getState(i), nil
@@ -60,14 +59,14 @@ func (self *integrationManager) getState(integration api.Integration) *api.Integ
 		Error: integration.HealthCheck(),
 	}
 
-	result.Connected = (result.Error == nil)
+	result.Connected = result.Error == nil
 	result.LastChecked = v1.Now()
 
 	return result
 }
 
 // NewIntegrationManager creates integration manager.
-func NewIntegrationManager(manager client.ClientManager) IntegrationManager {
+func NewIntegrationManager(manager clientapi.ClientManager) IntegrationManager {
 	return &integrationManager{
 		metric: metric.NewMetricManager(manager),
 	}

@@ -18,16 +18,17 @@ import (
 	"errors"
 
 	authApi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
-	"github.com/kubernetes/dashboard/src/app/backend/client"
+	clientapi "github.com/kubernetes/dashboard/src/app/backend/client/api"
 	kdErrors "github.com/kubernetes/dashboard/src/app/backend/errors"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // Implements AuthManager interface
 type authManager struct {
-	tokenManager        authApi.TokenManager
-	clientManager       client.ClientManager
-	authenticationModes authApi.AuthenticationModes
+	tokenManager            authApi.TokenManager
+	clientManager           clientapi.ClientManager
+	authenticationModes     authApi.AuthenticationModes
+	authenticationSkippable bool
 }
 
 // Login implements auth manager. See AuthManager interface for more information.
@@ -65,6 +66,10 @@ func (self authManager) AuthenticationModes() []authApi.AuthenticationMode {
 	return self.authenticationModes.Array()
 }
 
+func (self authManager) AuthenticationSkippable() bool {
+	return self.authenticationSkippable
+}
+
 // Returns authenticator based on provided LoginSpec.
 func (self authManager) getAuthenticator(spec *authApi.LoginSpec) (authApi.Authenticator, error) {
 	if len(self.authenticationModes) == 0 {
@@ -90,11 +95,12 @@ func (self authManager) healthCheck(authInfo api.AuthInfo) error {
 }
 
 // NewAuthManager creates auth manager.
-func NewAuthManager(clientManager client.ClientManager, tokenManager authApi.TokenManager,
-	authenticationModes authApi.AuthenticationModes) authApi.AuthManager {
+func NewAuthManager(clientManager clientapi.ClientManager, tokenManager authApi.TokenManager,
+	authenticationModes authApi.AuthenticationModes, authenticationSkippable bool) authApi.AuthManager {
 	return &authManager{
-		tokenManager:        tokenManager,
-		clientManager:       clientManager,
-		authenticationModes: authenticationModes,
+		tokenManager:            tokenManager,
+		clientManager:           clientManager,
+		authenticationModes:     authenticationModes,
+		authenticationSkippable: authenticationSkippable,
 	}
 }

@@ -18,12 +18,13 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-
 	"time"
 
 	restful "github.com/emicklei/go-restful"
 	authApi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
 	"github.com/kubernetes/dashboard/src/app/backend/client"
+	clientapi "github.com/kubernetes/dashboard/src/app/backend/client/api"
+	v1 "k8s.io/api/authorization/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -66,8 +67,13 @@ func (self *fakeClientManager) HasAccess(authInfo api.AuthInfo) error {
 	return self.HasAccessError
 }
 
-func (self *fakeClientManager) VerberClient(req *restful.Request) (client.ResourceVerber, error) {
-	return client.ResourceVerber{}, nil
+func (self *fakeClientManager) VerberClient(req *restful.Request) (clientapi.ResourceVerber, error) {
+	return client.NewResourceVerber(nil, nil, nil, nil, nil,
+		nil, nil, nil), nil
+}
+
+func (self *fakeClientManager) CanI(req *restful.Request, ssar *v1.SelfSubjectAccessReview) bool {
+	return true
 }
 
 type fakeTokenManager struct {
@@ -95,7 +101,7 @@ func TestAuthManager_Login(t *testing.T) {
 	cases := []struct {
 		info        string
 		spec        *authApi.LoginSpec
-		cManager    client.ClientManager
+		cManager    clientapi.ClientManager
 		tManager    authApi.TokenManager
 		expected    *authApi.AuthResponse
 		expectedErr error
@@ -132,7 +138,7 @@ func TestAuthManager_Login(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		authManager := NewAuthManager(c.cManager, c.tManager, authApi.AuthenticationModes{authApi.Token: true})
+		authManager := NewAuthManager(c.cManager, c.tManager, authApi.AuthenticationModes{authApi.Token: true}, true)
 		response, err := authManager.Login(c.spec)
 
 		if !areErrorsEqual(err, c.expectedErr) {
@@ -159,11 +165,25 @@ func TestAuthManager_AuthenticationModes(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		authManager := NewAuthManager(cManager, tManager, c.modes)
+		authManager := NewAuthManager(cManager, tManager, c.modes, true)
 		got := authManager.AuthenticationModes()
 
 		if !reflect.DeepEqual(got, c.expected) {
 			t.Errorf("Expected %v, but got %v.", c.expected, got)
+		}
+	}
+}
+
+func TestAuthManager_AuthenticationSkippable(t *testing.T) {
+	cManager := &fakeClientManager{}
+	tManager := &fakeTokenManager{}
+	cModes := authApi.AuthenticationModes{}
+
+	for _, flag := range []bool{true, false} {
+		authManager := NewAuthManager(cManager, tManager, cModes, flag)
+		got := authManager.AuthenticationSkippable()
+		if got != flag {
+			t.Errorf("Expected %v, but got %v.", flag, got)
 		}
 	}
 }

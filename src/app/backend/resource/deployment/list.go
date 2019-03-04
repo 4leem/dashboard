@@ -23,8 +23,8 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/common"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	client "k8s.io/client-go/kubernetes"
 )
 
@@ -32,6 +32,9 @@ import (
 type DeploymentList struct {
 	ListMeta          api.ListMeta       `json:"listMeta"`
 	CumulativeMetrics []metricapi.Metric `json:"cumulativeMetrics"`
+
+	// Basic information about resources status on the list.
+	Status common.ResourceStatus `json:"status"`
 
 	// Unordered list of Deployments.
 	Deployments []Deployment `json:"deployments"`
@@ -105,10 +108,13 @@ func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *d
 		return nil, criticalError
 	}
 
-	return toDeploymentList(deployments.Items, pods.Items, events.Items, rs.Items, nonCriticalErrors, dsQuery, metricClient), nil
+	deploymentList := toDeploymentList(deployments.Items, pods.Items, events.Items, rs.Items, nonCriticalErrors,
+		dsQuery, metricClient)
+	deploymentList.Status = getStatus(deployments, rs.Items, pods.Items, events.Items)
+	return deploymentList, nil
 }
 
-func toDeploymentList(deployments []extensions.Deployment, pods []v1.Pod, events []v1.Event, rs []extensions.ReplicaSet,
+func toDeploymentList(deployments []apps.Deployment, pods []v1.Pod, events []v1.Event, rs []apps.ReplicaSet,
 	nonCriticalErrors []error, dsQuery *dataselect.DataSelectQuery, metricClient metricapi.MetricClient) *DeploymentList {
 
 	deploymentList := &DeploymentList{

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -39,10 +40,7 @@ func TestGetSupportedLocales(t *testing.T) {
 	}{
 		{
 			Localization{
-				Translations: []Translation{
-					{File: "en/index.html", Key: "en"},
-					{File: "ja/index.html", Key: "ja"},
-				},
+				Translations: []string{"en", "ja"},
 			},
 			languageMake([]string{"en", "ja"}),
 		},
@@ -69,6 +67,8 @@ func TestGetSupportedLocales(t *testing.T) {
 }
 
 func TestDetermineLocale(t *testing.T) {
+	assetsDir := getAssetsDir()
+	defaultDir := filepath.Join(assetsDir, defaultLocaleDir)
 	cases := []struct {
 		handler           *LocaleHandler
 		createDir         bool
@@ -105,7 +105,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"ja",
-			"./public/ja",
+			filepath.Join(assetsDir, "ja"),
 		},
 		{
 			&LocaleHandler{
@@ -113,7 +113,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"ja,en-US;q=0.8,en;q=0.6",
-			"./public/ja",
+			filepath.Join(assetsDir, "ja"),
 		},
 		{
 			&LocaleHandler{
@@ -121,7 +121,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"af,ja,en-US;q=0.8,en;q=0.6",
-			"./public/ja",
+			filepath.Join(assetsDir, "ja"),
 		},
 		{
 			&LocaleHandler{
@@ -129,7 +129,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"af,en-US;q=0.8,en;q=0.6",
-			"./public/en",
+			filepath.Join(assetsDir, "en"),
 		},
 		{
 			&LocaleHandler{
@@ -145,7 +145,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"en",
-			"./public/en",
+			filepath.Join(assetsDir, "en"),
 		},
 		{
 			&LocaleHandler{
@@ -153,15 +153,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"zh",
-			"./public/zh",
-		},
-		{
-			&LocaleHandler{
-				SupportedLocales: languageMake([]string{"en", "zh-tw", "zh-hk", "zh", "ar-dz"}),
-			},
-			true,
-			"zh-cn",
-			"./public/zh",
+			filepath.Join(assetsDir, "zh"),
 		},
 		{
 			&LocaleHandler{
@@ -169,7 +161,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"ar",
-			"./public/en",
+			filepath.Join(assetsDir, "en"),
 		},
 		{
 			&LocaleHandler{
@@ -177,7 +169,7 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"ar-bh",
-			"./public/en",
+			filepath.Join(assetsDir, "en"),
 		},
 		{
 			&LocaleHandler{
@@ -185,24 +177,24 @@ func TestDetermineLocale(t *testing.T) {
 			},
 			true,
 			"af,zh-HK,zh;q=0.8,en;q=0.6",
-			"./public/zh",
+			filepath.Join(assetsDir, "zh"),
 		},
 	}
 
 	for _, c := range cases {
 		func() {
 			if c.createDir {
-				err := os.Mkdir("./public", 0777)
+				err := os.Mkdir(assetsDir, 0777)
 				if err != nil {
 					t.Fatalf("%s", err)
 				}
 				for _, lang := range c.handler.SupportedLocales {
-					err = os.Mkdir("./public/"+lang.String(), 0777)
+					err = os.Mkdir(filepath.Join(assetsDir, lang.String()), 0777)
 					if err != nil {
 						t.Fatalf("%s", err)
 					}
 				}
-				defer os.RemoveAll("./public")
+				defer os.RemoveAll(assetsDir)
 			}
 			actual := c.handler.determineLocalizedDir(c.acceptLanguageKey)
 			if !reflect.DeepEqual(actual, c.expected) {

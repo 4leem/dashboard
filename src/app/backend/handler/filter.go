@@ -24,8 +24,9 @@ import (
 	"time"
 
 	restful "github.com/emicklei/go-restful"
+	"github.com/kubernetes/dashboard/src/app/backend/args"
 	authApi "github.com/kubernetes/dashboard/src/app/backend/auth/api"
-	"github.com/kubernetes/dashboard/src/app/backend/client"
+	clientapi "github.com/kubernetes/dashboard/src/app/backend/client/api"
 	kdErrors "github.com/kubernetes/dashboard/src/app/backend/errors"
 	"golang.org/x/net/xsrftoken"
 	errorsK8s "k8s.io/apimachinery/pkg/api/errors"
@@ -33,7 +34,7 @@ import (
 )
 
 // InstallFilters installs defined filter for given web service
-func InstallFilters(ws *restful.WebService, manager client.ClientManager) {
+func InstallFilters(ws *restful.WebService, manager clientapi.ClientManager) {
 	ws.Filter(requestAndResponseLogger)
 	ws.Filter(metricsFilter)
 	ws.Filter(validateXSRFFilter(manager.CSRFKey()))
@@ -54,9 +55,15 @@ func restrictedResourcesFilter(request *restful.Request, response *restful.Respo
 // web-service filter function used for request and response logging.
 func requestAndResponseLogger(request *restful.Request, response *restful.Response,
 	chain *restful.FilterChain) {
-	log.Printf(formatRequestLog(request))
+	if args.Holder.GetAPILogLevel() != "NONE" {
+		log.Printf(formatRequestLog(request))
+	}
+
 	chain.ProcessFilter(request, response)
-	log.Printf(formatResponseLog(response, request))
+
+	if args.Holder.GetAPILogLevel() != "NONE" {
+		log.Printf(formatResponseLog(response, request))
+	}
 }
 
 // formatRequestLog formats request log string.
@@ -76,6 +83,12 @@ func formatRequestLog(request *restful.Request) string {
 		}
 	}
 
+	// Is DEBUG level logging enabled? Yes?
+	// Great now let's filter out any content from sensitive URLs
+	if args.Holder.GetAPILogLevel() != "DEBUG" && checkSensitiveURL(&uri) {
+		content = "{ contents hidden }"
+	}
+
 	return fmt.Sprintf(RequestLogString, time.Now().Format(time.RFC3339), request.Request.Proto,
 		request.Request.Method, uri, request.Request.RemoteAddr, content)
 }
@@ -84,6 +97,22 @@ func formatRequestLog(request *restful.Request) string {
 func formatResponseLog(response *restful.Response, request *restful.Request) string {
 	return fmt.Sprintf(ResponseLogString, time.Now().Format(time.RFC3339),
 		request.Request.RemoteAddr, response.StatusCode())
+}
+
+// checkSensitiveUrl checks if a string matches against a sensitive URL
+// true if sensitive. false if not.
+func checkSensitiveURL(url *string) bool {
+	var s struct{}
+	var sensitiveUrls = make(map[string]struct{})
+	sensitiveUrls["/api/v1/login"] = s
+	sensitiveUrls["/api/v1/csrftoken/login"] = s
+	sensitiveUrls["/api/v1/token/refresh"] = s
+
+	if _, ok := sensitiveUrls[*url]; ok {
+		return true
+	}
+	return false
+
 }
 
 func metricsFilter(req *restful.Request, resp *restful.Response,

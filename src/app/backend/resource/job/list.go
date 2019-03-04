@@ -24,7 +24,7 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
 	batch "k8s.io/api/batch/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	client "k8s.io/client-go/kubernetes"
 )
 
@@ -33,11 +33,32 @@ type JobList struct {
 	ListMeta          api.ListMeta       `json:"listMeta"`
 	CumulativeMetrics []metricapi.Metric `json:"cumulativeMetrics"`
 
+	// Basic information about resources status on the list.
+	Status common.ResourceStatus `json:"status"`
+
 	// Unordered list of Jobs.
 	Jobs []Job `json:"jobs"`
 
 	// List of non-critical errors, that occurred during resource retrieval.
 	Errors []error `json:"errors"`
+}
+
+type JobStatusType string
+
+const (
+	// JobRunning means the job is still running.
+	JobStatusRunning JobStatusType = "Running"
+	// JobComplete means the job has completed its execution.
+	JobStatusComplete JobStatusType = "Complete"
+	// JobFailed means the job has failed its execution.
+	JobStatusFailed JobStatusType = "Failed"
+)
+
+type JobStatus struct {
+	// Short, machine understandable job status code.
+	Status JobStatusType `json:"status"`
+	// A human-readable description of the status of related job.
+	Message string `json:"message"`
 }
 
 // Job is a presentation layer view of Kubernetes Job resource. This means it is Job plus additional
@@ -57,6 +78,9 @@ type Job struct {
 
 	// number of parallel jobs defined.
 	Parallelism *int32 `json:"parallelism"`
+
+	// JobStatus contains inferred job status based on job conditions
+	JobStatus JobStatus `json:"jobStatus"`
 }
 
 // GetJobList returns a list of all Jobs in the cluster.
@@ -98,7 +122,9 @@ func GetJobListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, criticalError
 	}
 
-	return ToJobList(jobs.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient), nil
+	jobList := ToJobList(jobs.Items, pods.Items, events.Items, nonCriticalErrors, dsQuery, metricClient)
+	jobList.Status = getStatus(jobs, pods.Items)
+	return jobList, nil
 }
 
 func ToJobList(jobs []batch.Job, pods []v1.Pod, events []v1.Event, nonCriticalErrors []error,
@@ -141,6 +167,22 @@ func toJob(job *batch.Job, podInfo *common.PodInfo) Job {
 		ContainerImages:     common.GetContainerImages(&job.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&job.Spec.Template.Spec),
 		Pods:                *podInfo,
+		JobStatus:           getJobStatus(job),
 		Parallelism:         job.Spec.Parallelism,
 	}
+}
+
+func getJobStatus(job *batch.Job) JobStatus {
+	jobStatus := JobStatus{Status: JobStatusRunning}
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batch.JobComplete && condition.Status == v1.ConditionTrue {
+			jobStatus.Status = JobStatusComplete
+			break
+		} else if condition.Type == batch.JobFailed && condition.Status == v1.ConditionTrue {
+			jobStatus.Status = JobStatusFailed
+			jobStatus.Message = condition.Message
+			break
+		}
+	}
+	return jobStatus
 }

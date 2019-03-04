@@ -15,20 +15,18 @@
 package handler
 
 import (
-	"fmt"
 	"io"
 
 	restful "github.com/emicklei/go-restful"
+	kdErrors "github.com/kubernetes/dashboard/src/app/backend/errors"
 )
 
-func handleDownload(response *restful.Response, result io.ReadCloser, filename string) {
-	header := fmt.Sprintf("attachment; filename=\"%v\"", filename)
-	response.AddHeader("Content-Disposition", header)
-
+func handleDownload(response *restful.Response, result io.ReadCloser) {
+	response.AddHeader(restful.HEADER_ContentType, "text/plain")
 	defer result.Close()
 	_, err := io.Copy(response, result)
 	if err != nil {
-		handleInternalError(response, err)
+		kdErrors.HandleInternalError(response, err)
 		return
 	}
 }

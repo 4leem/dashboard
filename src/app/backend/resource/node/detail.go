@@ -24,7 +24,7 @@ import (
 	"github.com/kubernetes/dashboard/src/app/backend/resource/dataselect"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/event"
 	"github.com/kubernetes/dashboard/src/app/backend/resource/pod"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -87,9 +87,6 @@ type NodeDetail struct {
 	// Resources allocated by node.
 	AllocatedResources NodeAllocatedResources `json:"allocatedResources"`
 
-	// External ID of the node assigned by some machine database (e.g. a cloud provider).
-	ExternalID string `json:"externalID"`
-
 	// PodCIDR represents the pod IP range assigned to the node.
 	PodCIDR string `json:"podCIDR"`
 
@@ -119,6 +116,9 @@ type NodeDetail struct {
 
 	// Taints
 	Taints []v1.Taint `json:"taints,omitempty"`
+
+	// Addresses is a list of addresses reachable to the node. Queried from cloud provider, if available.
+	Addresses []v1.NodeAddress `json:"addresses,omitempty"`
 
 	// List of non-critical errors, that occurred during resource retrieval.
 	Errors []error `json:"errors"`
@@ -330,7 +330,6 @@ func toNodeDetail(node v1.Node, pods *pod.PodList, eventList *common.EventList,
 		ObjectMeta:         api.NewObjectMeta(node.ObjectMeta),
 		TypeMeta:           api.NewTypeMeta(api.ResourceKindNode),
 		Phase:              node.Status.Phase,
-		ExternalID:         node.Spec.ExternalID,
 		ProviderID:         node.Spec.ProviderID,
 		PodCIDR:            node.Spec.PodCIDR,
 		Unschedulable:      node.Spec.Unschedulable,
@@ -342,6 +341,7 @@ func toNodeDetail(node v1.Node, pods *pod.PodList, eventList *common.EventList,
 		AllocatedResources: allocatedResources,
 		Metrics:            metrics,
 		Taints:             node.Spec.Taints,
+		Addresses:          node.Status.Addresses,
 		Errors:             nonCriticalErrors,
 	}
 }
